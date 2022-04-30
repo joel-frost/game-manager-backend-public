@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import javax.transaction.Transactional;
@@ -28,9 +29,11 @@ public class AppUserService implements UserDetailsService {
     private final AppUserRepository appUserRepository;
     private final RoleRepository roleRepository;
     private final GameRepository gameRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public AppUser saveAppUser(AppUser appUser) {
         log.info("Saving appUser: {}", appUser);
+        appUser.setPassword(passwordEncoder.encode(appUser.getPassword()));
         return appUserRepository.save(appUser);
     }
     public Role saveRole(Role role) {

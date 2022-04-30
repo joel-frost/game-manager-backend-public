@@ -15,9 +15,9 @@ import static javax.persistence.GenerationType.AUTO;
 @Getter
 @Setter
 @ToString
-@RequiredArgsConstructor
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
+
 public class AppUser {
     @Id
     @GeneratedValue(strategy = AUTO)

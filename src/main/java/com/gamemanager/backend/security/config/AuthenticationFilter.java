@@ -14,7 +14,6 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import javax.servlet.FilterChain;
-import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
@@ -25,12 +24,10 @@ import java.util.stream.Collectors;
 
 @Slf4j
 @RequiredArgsConstructor
-public class AuthFilter extends UsernamePasswordAuthenticationFilter {
+public class AuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
-    private static final String JWT_SECRET = System.getenv("JWT_SECRET");
     private final AuthenticationManager authenticationManager;
-    private static final long ACCESS_TOKEN_EXPIRATION_TIME = 1000 * 60; // 1 minute
-    private static final long REFRESH_TOKEN_EXPIRATION_TIME = 1000 * 60 * 24 * 7; // 1 week
+
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
         //TODO if want to get details from object, change to object mapper
@@ -45,16 +42,16 @@ public class AuthFilter extends UsernamePasswordAuthenticationFilter {
     @Override
     protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException {
         User user = (User) authResult.getPrincipal();
-        Algorithm algorithm = Algorithm.HMAC256(JWT_SECRET.getBytes());
+        Algorithm algorithm = SecurityUtilities.getAlgorithm();
         String accessToken = JWT.create().withSubject(user.getUsername())
-                .withExpiresAt(new Date(System.currentTimeMillis() + ACCESS_TOKEN_EXPIRATION_TIME))
+                .withExpiresAt(new Date(System.currentTimeMillis() + SecurityUtilities.ACCESS_TOKEN_EXPIRATION_TIME))
                 .withIssuer(request.getRequestURL().toString())
                 //TODO make this easier to read
                 .withClaim("roles", user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()))
                 .sign(algorithm);
 
         String refreshToken = JWT.create().withSubject(user.getUsername())
-                .withExpiresAt(new Date(System.currentTimeMillis() + REFRESH_TOKEN_EXPIRATION_TIME))
+                .withExpiresAt(new Date(System.currentTimeMillis() + SecurityUtilities.REFRESH_TOKEN_EXPIRATION_TIME))
                 .withIssuer(request.getRequestURL().toString())
                 .sign(algorithm);
 

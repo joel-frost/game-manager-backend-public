@@ -10,6 +10,7 @@ import org.springframework.security.config.annotation.web.configuration.WebSecur
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 import static org.springframework.http.HttpMethod.GET;
 
@@ -47,11 +48,15 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(HttpSecurity http) throws Exception {
+        AuthenticationFilter authenticationFilter = new AuthenticationFilter(authenticationManagerBean());
+        authenticationFilter.setFilterProcessesUrl("/api/v1/login/**");
         http.csrf().disable();
         http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
         //TODO: Set these up properly, below for example
+        http.authorizeRequests().antMatchers("/api/v1/login/**", "/api/v1/appUser/refreshToken/**", "/api/v1/game/**").permitAll();
         http.authorizeRequests().antMatchers(GET, "/api/v1/secrets/**").hasAnyAuthority("ROLE_ADMIN");
-        http.authorizeRequests().anyRequest().permitAll();
-        http.addFilter(new AuthFilter(authenticationManagerBean()));
+        http.authorizeRequests().anyRequest().authenticated();
+        http.addFilter(authenticationFilter);
+        http.addFilterBefore(new AuthorisationFilter(), UsernamePasswordAuthenticationFilter.class);
     }
 }

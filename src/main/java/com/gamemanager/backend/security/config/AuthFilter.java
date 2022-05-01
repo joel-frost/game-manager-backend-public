@@ -27,6 +27,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class AuthFilter extends UsernamePasswordAuthenticationFilter {
 
+    private static final String JWT_SECRET = System.getenv("JWT_SECRET");
     private final AuthenticationManager authenticationManager;
     private static final long ACCESS_TOKEN_EXPIRATION_TIME = 1000 * 60; // 1 minute
     private static final long REFRESH_TOKEN_EXPIRATION_TIME = 1000 * 60 * 24 * 7; // 1 week
@@ -42,10 +43,10 @@ public class AuthFilter extends UsernamePasswordAuthenticationFilter {
     }
 
     @Override
-    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException, ServletException {
+    protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException {
         User user = (User) authResult.getPrincipal();
         //TODO generate a secret elsewhere
-        Algorithm algorithm = Algorithm.HMAC256("secret".getBytes());
+        Algorithm algorithm = Algorithm.HMAC256(JWT_SECRET.getBytes());
         String accessToken = JWT.create().withSubject(user.getUsername())
                 .withExpiresAt(new Date(System.currentTimeMillis() + ACCESS_TOKEN_EXPIRATION_TIME))
                 .withIssuer(request.getRequestURL().toString())

@@ -15,7 +15,8 @@ public final class SecurityUtilities {
 
     public static final long ACCESS_TOKEN_EXPIRATION_TIME = 1000 * 60; // 1 minute
     public static final long REFRESH_TOKEN_EXPIRATION_TIME = 1000 * 60 * 24 * 7; // 1 week
-    private final static String JWT_SECRET = System.getenv("JWT_SECRET");
+    private static final String JWT_SECRET = System.getenv("JWT_SECRET");
+    public static final String FRONTEND_URL = "http://localhost:3000";
 
     public static Algorithm getAlgorithm() {
         return Algorithm.HMAC256(JWT_SECRET.getBytes());

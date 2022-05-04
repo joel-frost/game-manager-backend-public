@@ -26,12 +26,23 @@ public class AppUser {
     private String lastName;
     private String email;
     private String password;
+    private String steamId;
+    private String steamUsername;
     @ManyToMany(fetch = FetchType.EAGER)
     private Collection<Role> roles = new ArrayList<>();
     @ManyToMany(fetch = FetchType.LAZY)
     @ToString.Exclude
     private Collection<Game> games = new ArrayList<>();
 
+    public AppUser(Long id, String firstName, String lastName, String email, String password, Collection<Role> roles, Collection<Game> games) {
+        this.id = id;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.password = password;
+        this.roles = roles;
+        this.games = games;
+    }
 
     @Override
     public boolean equals(Object o) {

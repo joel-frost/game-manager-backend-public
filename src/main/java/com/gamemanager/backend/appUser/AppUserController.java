@@ -30,6 +30,16 @@ public class AppUserController {
         return ResponseEntity.ok().body(appUserService.getUsers());
     }
 
+    @GetMapping("/findByEmail/{email}")
+    public ResponseEntity<AppUser> findByEmail(@PathVariable String email) {
+        return ResponseEntity.ok().body(appUserService.findAppUserByEmail(email));
+    }
+
+    @PutMapping("/update/{email}")
+    public ResponseEntity<AppUser> updateAppUser(@PathVariable String email, @RequestBody AppUser appUser) {
+        return ResponseEntity.ok().body(appUserService.updateAppUser(email, appUser));
+    }
+
     @PostMapping("/create")
     public ResponseEntity<AppUser> createUser(@RequestBody AppUser appUser) {
         URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/appUser/create").toUriString());

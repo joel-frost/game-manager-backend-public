@@ -85,4 +85,30 @@ public class AppUserService implements UserDetailsService {
         user.getRoles().forEach(role -> authorities.add(new SimpleGrantedAuthority(role.getName())));
         return new User(user.getEmail(), user.getPassword(), authorities);
     }
+
+    public AppUser updateAppUser(String email, AppUser appUser) {
+        log.info("Updating appUser: {}", email);
+        Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
+        if (optionalAppUser.isPresent()) {
+            AppUser user = optionalAppUser.get();
+            if (appUser.getFirstName() != null && !appUser.getFirstName().isEmpty()) {
+                user.setFirstName(appUser.getFirstName());
+            }
+            if (appUser.getLastName() != null && !appUser.getLastName().isEmpty()) {
+                user.setLastName(appUser.getLastName());
+            }
+            if (appUser.getPassword() != null && !appUser.getPassword().isEmpty()) {
+                user.setPassword(passwordEncoder.encode(appUser.getPassword()));
+            }
+            if (appUser.getSteamId() != null && !appUser.getSteamId().isEmpty()) {
+                user.setSteamId(appUser.getSteamId());
+            }
+            if (appUser.getSteamUsername() != null && !appUser.getSteamUsername().isEmpty()) {
+                user.setSteamUsername(appUser.getSteamUsername());
+            }
+            return appUserRepository.save(user);
+        }
+        log.error("User not found {}", email);
+        throw new UsernameNotFoundException(email);
+    }
 }

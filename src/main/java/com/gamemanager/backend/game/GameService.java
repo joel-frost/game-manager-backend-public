@@ -51,7 +51,6 @@ public class GameService {
 
     public void getSteamGames(String steamId) {
         final String urlStr = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key="+ steamKey+ "&steamid="+ steamId +"&include_appinfo=1&format=json";
-
         JSONObject root = getJSONRoot(urlStr);
         JSONArray games = root.getJSONObject("response").getJSONArray("games");
         //for (int i = 0; i < games.length(); i++) {
@@ -60,7 +59,9 @@ public class GameService {
             rateLimiter.acquire();
             JSONObject currentGame = (JSONObject) games.get(i);
             String gameName = currentGame.getString("name");
-            storeGame(gameName);
+            int playTime = currentGame.getInt("playtime_forever");
+            int steamAppId = currentGame.getInt("appid");
+            storeGame(gameName, playTime, steamAppId);
         }
     }
 
@@ -84,6 +85,10 @@ public class GameService {
     }
 
     private Game convertToGameObject(JSONObject jsonGame) {
+        return convertToGameObject(jsonGame, -1, -1);
+    }
+
+    private Game convertToGameObject(JSONObject jsonGame, int playTime, int steamAppId) {
         String name = "Unknown";
         String summary = "No summary available";
         int cover = -1;
@@ -103,22 +108,28 @@ public class GameService {
             rating = jsonGame.getFloat("aggregated_rating");
         }
         if (jsonGame.has("first_release_date")) {
-            releaseDate = Instant.ofEpochMilli(jsonGame.getInt("first_release_date")).atZone(ZoneId.systemDefault()).toLocalDate();
+            System.out.println(jsonGame.getInt("first_release_date"));
+            releaseDate = Instant.ofEpochSecond(jsonGame.getLong("first_release_date")).atZone(ZoneId.systemDefault()).toLocalDate();
+            System.out.println(releaseDate);
         }
         if (jsonGame.has("genres")) {
             JSONArray genreArr = jsonGame.getJSONArray("genres");
             genre = genreArr.getInt(0);
         }
-        return new Game(name, summary, cover, rating, releaseDate, genre);
+        return new Game(name, summary, cover, rating, releaseDate, genre, playTime, steamAppId);
     }
 
     private void storeGame(String gameName) {
+        storeGame(gameName, -1, -1);
+    }
+
+    private void storeGame(String gameName, int playTime, int steamAppId) {
         JSONArray jsonArr = searchIGDB(gameName);
         if (jsonArr == null || jsonArr.length() <= 0) {
-            gameRepository.save(new Game(gameName, "No summary available", -1, -1.0f, LocalDate.now(), -1));
+            gameRepository.save(new Game(gameName, "No summary available", -1, -1.0f, LocalDate.now(), -1, playTime, steamAppId));
         }
         else {
-            Game game = convertToGameObject(jsonArr.getJSONObject(0));
+            Game game = convertToGameObject(jsonArr.getJSONObject(0), playTime, steamAppId);
             gameRepository.save(game);
         }
     }

@@ -25,26 +25,29 @@ import java.util.Map;
 public class AuthorisationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-       if (request.getServletPath().equals("/api/v1/login") || request.getServletPath().equals("/api/v1/appUser/refreshToken")) {
+       if (request.getServletPath().equals("/api/v1/login") || request.getServletPath().equals("/api/v1/appUser/refreshToken")
+       || request.getServletPath().equals("/api/v1/appUser/create")){
            // Pass to next filter in chain
            filterChain.doFilter(request, response);
-       } else {
+       } else {;
            String authHeader = request.getHeader("Authorization");
            if (authHeader != null && authHeader.startsWith("Bearer ")) {
                try {
                    // Remove 'bearer' from header
                    String token = authHeader.substring(7);
+                   // Decode token
                    Algorithm algorithm = SecurityUtilities.getAlgorithm();
                    JWTVerifier verifier = JWT.require(algorithm).build();
                    DecodedJWT jwt = verifier.verify(token);
+                   // Get user details from token
                    String user = jwt.getSubject();
                    String[] roles = jwt.getClaim("roles").asArray(String.class);
+                   // Create authorities
                    Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
-                   // Check this works
                    for (String role : roles) {
                        authorities.add(new SimpleGrantedAuthority(role));
                    }
-                   // Create token for user and authorities
+                   // Generate a token for the user that provides the correct access
                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(user, null, authorities);
                    // Send token to spring security
                    SecurityContextHolder.getContext().setAuthentication(authToken);

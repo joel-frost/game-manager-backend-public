@@ -32,6 +32,8 @@ public class Game {
     private LocalDate releaseDate;
     private int genreCode;
     private String gameStatus = "Not Set";
+    private int playTime;
+    private int steamAppId;
 
     public Game(String name) {
         this.name = name;
@@ -42,13 +44,15 @@ public class Game {
         this.gameStatus = gameStatus;
     }
 
-    public Game(String name, String description, int coverCode, float aggregatedRating, LocalDate releaseDate, int genreCode) {
+    public Game(String name, String description, int coverCode, float aggregatedRating, LocalDate releaseDate, int genreCode, int playTime, int steamAppId) {
         this.name = name;
         this.description = description;
         this.coverCode = coverCode;
         this.aggregatedRating = aggregatedRating;
         this.releaseDate = releaseDate;
         this.genreCode = genreCode;
+        this.playTime = playTime;
+        this.steamAppId = steamAppId;
     }
 
 }

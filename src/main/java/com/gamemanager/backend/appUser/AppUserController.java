@@ -40,7 +40,7 @@ public class AppUserController {
         return ResponseEntity.ok().body(appUserService.updateAppUser(email, appUser));
     }
 
-    @PostMapping("/create")
+    @PostMapping("/create/user")
     public ResponseEntity<AppUser> createUser(@RequestBody AppUser appUser) {
         URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/appUser/create").toUriString());
         return ResponseEntity.created(uri).body(appUserService.saveAppUser(appUser));

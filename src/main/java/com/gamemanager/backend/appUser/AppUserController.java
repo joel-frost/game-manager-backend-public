@@ -3,6 +3,7 @@ package com.gamemanager.backend.appUser;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamemanager.backend.game.Game;
 import com.gamemanager.backend.security.config.SecurityUtilities;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -35,9 +36,31 @@ public class AppUserController {
         return ResponseEntity.ok().body(appUserService.findAppUserByEmail(email));
     }
 
+    @PostMapping("/addSteamIdFromUsername/{steamUsername}/{email}")
+    public ResponseEntity<AppUser> findSteamId(@PathVariable String steamUsername, @PathVariable String email) {
+        URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/appUser/addSteamIdFromUsername/{steamUsername}").buildAndExpand(steamUsername).toUriString());
+        return ResponseEntity.created(uri).body(appUserService.addSteamIdFromUsername(steamUsername, email));
+    }
+
+    @GetMapping("/games/{email}")
+    public ResponseEntity<Collection<Game>> getGames(@PathVariable String email) {
+        return ResponseEntity.ok().body(appUserService.getAppUserGames(email));
+    }
+
     @PutMapping("/update/{email}")
     public ResponseEntity<AppUser> updateAppUser(@PathVariable String email, @RequestBody AppUser appUser) {
         return ResponseEntity.ok().body(appUserService.updateAppUser(email, appUser));
+    }
+
+    @PostMapping("/addGame/{email}")
+    public ResponseEntity<AppUser> addGameToAppUser(@PathVariable String email, @RequestBody Game game) {
+        URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/appUser/addGame/{email}").buildAndExpand(email).toUriString());
+        return ResponseEntity.created(uri).body(appUserService.addGameToAppUser(email, game));
+    }
+
+    @DeleteMapping("/deleteGame/{email}/{gameId}")
+    public ResponseEntity<AppUser> deleteGameFromAppUser(@PathVariable String email, @PathVariable Long gameId) {
+        return ResponseEntity.ok().body(appUserService.deleteGameFromAppUser(email, gameId));
     }
 
     @PostMapping("/create/user")

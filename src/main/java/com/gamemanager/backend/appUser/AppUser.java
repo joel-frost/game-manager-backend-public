@@ -1,5 +1,6 @@
 package com.gamemanager.backend.appUser;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.gamemanager.backend.game.Game;
 import lombok.*;
 import org.hibernate.Hibernate;
@@ -32,6 +33,7 @@ public class AppUser {
     private Collection<Role> roles = new ArrayList<>();
     @ManyToMany(fetch = FetchType.LAZY)
     @ToString.Exclude
+    @JsonIgnore
     private Collection<Game> games = new ArrayList<>();
 
     public AppUser(Long id, String firstName, String lastName, String email, String password, Collection<Role> roles, Collection<Game> games) {

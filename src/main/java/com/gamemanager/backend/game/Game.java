@@ -28,9 +28,9 @@ public class Game {
     @Lob
     private String description;
     private int coverCode;
-    private float aggregatedRating;
+    private Float aggregatedRating;
     private LocalDate releaseDate;
-    private int genreCode;
+    private String genre;
     private String gameStatus = "Not Set";
     private int playTime;
     private int steamAppId;
@@ -44,13 +44,13 @@ public class Game {
         this.gameStatus = gameStatus;
     }
 
-    public Game(String name, String description, int coverCode, float aggregatedRating, LocalDate releaseDate, int genreCode, int playTime, int steamAppId) {
+    public Game(String name, String description, int coverCode, float aggregatedRating, LocalDate releaseDate, String genre, int playTime, int steamAppId) {
         this.name = name;
         this.description = description;
         this.coverCode = coverCode;
         this.aggregatedRating = aggregatedRating;
         this.releaseDate = releaseDate;
-        this.genreCode = genreCode;
+        this.genre = genre;
         this.playTime = playTime;
         this.steamAppId = steamAppId;
     }

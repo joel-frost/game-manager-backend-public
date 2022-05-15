@@ -1,6 +1,10 @@
 package com.gamemanager.backend.game;
 
+import com.gamemanager.backend.appUser.AppUser;
+import com.gamemanager.backend.appUser.AppUserService;
 import com.google.common.util.concurrent.RateLimiter;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
 import org.json.JSONException;
 import org.json.JSONArray;
@@ -11,8 +15,9 @@ import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 
 import javax.transaction.Transactional;
@@ -26,9 +31,13 @@ import java.time.ZoneId;
 import java.util.*;
 
 @Service
+@RequiredArgsConstructor
+@Transactional
+@Slf4j
 public class GameService {
 
     private final GameRepository gameRepository;
+    private final AppUserService appUserService;
     private final String clientId = System.getenv("CLIENT_ID");
     private final String clientSecret = System.getenv("CLIENT_SECRET");
     private final String steamKey = System.getenv("STEAM_KEY");
@@ -40,16 +49,15 @@ public class GameService {
             .connectTimeout(Duration.ofSeconds(10))
             .build();
 
-    @Autowired
-    public GameService(GameRepository gameRepository) {
-        this.gameRepository = gameRepository;
-    }
-
     public List<Game> getAllGames() {
         return gameRepository.findAll();
     }
 
-    public void getSteamGames(String steamId) {
+    public void addSteamGamesToLibrary(String steamId, String userEmail) {
+        Optional<AppUser> appUser = Optional.ofNullable(appUserService.findAppUserByEmail(userEmail));
+        if (!appUser.isPresent()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User not found");
+        }
         final String urlStr = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key="+ steamKey+ "&steamid="+ steamId +"&include_appinfo=1&format=json";
         JSONObject root = getJSONRoot(urlStr);
         JSONArray games = root.getJSONObject("response").getJSONArray("games");
@@ -61,14 +69,14 @@ public class GameService {
             String gameName = currentGame.getString("name");
             int playTime = currentGame.getInt("playtime_forever");
             int steamAppId = currentGame.getInt("appid");
-            storeGame(gameName, playTime, steamAppId);
+            storeGame(gameName, playTime, steamAppId, appUser.get());
         }
     }
 
-    private JSONArray searchIGDB(String gameName) {
+    private JSONArray getIGDBJsonArray(String gameName) {
         String token = getIgdbAccessToken();
         String body = "search \"" + gameName + "\";\n" +
-                "fields aggregated_rating,cover,summary,first_release_date,genres,name;";
+                "fields aggregated_rating,cover,summary,first_release_date,genres.name,name;";
         HttpRequest request = HttpRequest.newBuilder()
                 .POST(HttpRequest.BodyPublishers.ofString(body))
                 .uri(URI.create("https://api.igdb.com/v4/games"))
@@ -89,12 +97,13 @@ public class GameService {
     }
 
     private Game convertToGameObject(JSONObject jsonGame, int playTime, int steamAppId) {
+        System.out.println(jsonGame.toString());
         String name = "Unknown";
-        String summary = "No summary available";
+        String summary = "";
         int cover = -1;
         float rating = -1.0f;
-        LocalDate releaseDate = LocalDate.now();
-        int genre = -1;
+        LocalDate releaseDate = null;
+        String genre = "";
         if (jsonGame.has("name")) {
             name = jsonGame.getString("name");
         }
@@ -108,29 +117,39 @@ public class GameService {
             rating = jsonGame.getFloat("aggregated_rating");
         }
         if (jsonGame.has("first_release_date")) {
-            System.out.println(jsonGame.getInt("first_release_date"));
             releaseDate = Instant.ofEpochSecond(jsonGame.getLong("first_release_date")).atZone(ZoneId.systemDefault()).toLocalDate();
-            System.out.println(releaseDate);
         }
         if (jsonGame.has("genres")) {
             JSONArray genreArr = jsonGame.getJSONArray("genres");
-            genre = genreArr.getInt(0);
+            genre = genreArr.getJSONObject(0).getString("name");
         }
         return new Game(name, summary, cover, rating, releaseDate, genre, playTime, steamAppId);
     }
 
-    private void storeGame(String gameName) {
-        storeGame(gameName, -1, -1);
+    private void storeGame(String gameName, AppUser appUser) {
+        storeGame(gameName, -1, -1, appUser);
     }
 
-    private void storeGame(String gameName, int playTime, int steamAppId) {
-        JSONArray jsonArr = searchIGDB(gameName);
+    private void storeGame(String gameName, int playTime, int steamAppId, AppUser appUser) {
+        Optional<Game> optionalGame = gameRepository.findGameBySteamAppId(steamAppId);
+        if (optionalGame.isPresent()) {
+            if (appUser.getGames().contains(optionalGame.get())) {
+                log.info("Game already exists in user's list");
+                return;
+            }
+        }
+
+        JSONArray jsonArr = getIGDBJsonArray(gameName);
+
         if (jsonArr == null || jsonArr.length() <= 0) {
-            gameRepository.save(new Game(gameName, "No summary available", -1, -1.0f, LocalDate.now(), -1, playTime, steamAppId));
+            Game game = new Game(gameName, "", -1, -1, null, "", playTime, steamAppId);
+            gameRepository.save(game);
+            appUserService.addGameToAppUser(appUser, game);
         }
         else {
             Game game = convertToGameObject(jsonArr.getJSONObject(0), playTime, steamAppId);
             gameRepository.save(game);
+            appUserService.addGameToAppUser(appUser, game);
         }
     }
 
@@ -215,9 +234,9 @@ public class GameService {
 
     }
 
-    public List<Game> searchGames(String searchTerm) {
+    public List<Game> searchIGDBByGameName(String searchTerm) {
         //TODO: Check if exists first
-        JSONArray results = searchIGDB(searchTerm);
+        JSONArray results = getIGDBJsonArray(searchTerm);
         List<Game> resultGames = new ArrayList<>();
         for (int i = 0; i < results.length(); i++) {
             Game game = convertToGameObject(results.getJSONObject(i));

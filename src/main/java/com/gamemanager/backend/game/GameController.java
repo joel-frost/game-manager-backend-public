@@ -1,8 +1,6 @@
 package com.gamemanager.backend.game;
 
 import lombok.AllArgsConstructor;
-import net.minidev.json.JSONObject;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,10 +18,10 @@ public class GameController {
     public List<Game> getAllGames() { return gameService.getAllGames(); }
 
     @GetMapping(path="/search")
-    public List<Game> searchGames(@RequestParam("searchTerm") String searchTerm) { return gameService.searchGames(searchTerm); }
+    public List<Game> searchGames(@RequestParam("searchTerm") String searchTerm) { return gameService.searchIGDBByGameName(searchTerm); }
 
-    @PostMapping(path = "/steam")
-    public void getSteamGames(@RequestBody String steamId) { gameService.getSteamGames(steamId); }
+    @PostMapping(path = "/steam/{steamId}/{userEmail}")
+    public void getSteamGames(@PathVariable String steamId, @PathVariable String userEmail) { gameService.addSteamGamesToLibrary(steamId, userEmail); }
 
 
     @PostMapping

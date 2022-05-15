@@ -8,4 +8,6 @@ import java.util.Optional;
 @Repository
 public interface GameRepository extends JpaRepository<Game, Long> {
     Optional<Game> findGameByName(String name);
+
+    Optional<Game> findGameBySteamAppId(int steamAppId);
 }

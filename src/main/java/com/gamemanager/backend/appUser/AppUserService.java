@@ -2,8 +2,11 @@ package com.gamemanager.backend.appUser;
 
 import com.gamemanager.backend.game.Game;
 import com.gamemanager.backend.game.GameRepository;
+import com.gamemanager.backend.game.GameService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.json.JSONObject;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -11,8 +14,14 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import javax.transaction.Transactional;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -28,11 +37,22 @@ public class AppUserService implements UserDetailsService {
 
     private final AppUserRepository appUserRepository;
     private final RoleRepository roleRepository;
-    private final GameRepository gameRepository;
     private final PasswordEncoder passwordEncoder;
+    private final String steamKey = System.getenv("STEAM_KEY");
+    private final GameRepository gameRepository;
+
+    private static final HttpClient httpClient = HttpClient.newBuilder()
+            .version(HttpClient.Version.HTTP_1_1)
+            .connectTimeout(Duration.ofSeconds(10))
+            .build();
 
     public AppUser saveAppUser(AppUser appUser) {
         log.info("Saving appUser: {}", appUser);
+        Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(appUser.getEmail()));
+        if (optionalAppUser.isPresent()) {
+            log.error("AppUser already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "AppUser already exists");
+        }
         appUser.setPassword(passwordEncoder.encode(appUser.getPassword()));
         return appUserRepository.save(appUser);
     }
@@ -55,21 +75,31 @@ public class AppUserService implements UserDetailsService {
         return appUserRepository.findAll();
     }
 
-    public void addGameToAppUser(String email, String gameName) {
-        log.info("Adding game: {} to appUser: {}", gameName, email);
-        AppUser appUser = appUserRepository.findByEmail(email);
-        Optional<Game> game = gameRepository.findGameByName(gameName);
-        if (game.isPresent()) {
-            appUser.getGames().add(game.get());
-        } else {
-            log.error("Game not found");
+    public AppUser addGameToAppUser(String email, Game game) {
+        log.info("Adding game: {} to appUser: {}", game, email);
+
+        Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
+        if (!optionalAppUser.isPresent()) {
+            log.error("AppUser not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "AppUser not found");
         }
+        Optional<Game> optionalGame = gameRepository.findGameByName(game.getName());
+        if (!optionalGame.isPresent()) {
+            gameRepository.save(game);
+        }
+        optionalAppUser.get().getGames().add(game);
+        return optionalAppUser.get();
     }
 
-    public Collection<Game> getAppUserGames(String email) {
+    public void addGameToAppUser(AppUser appUser, Game game) {
+        log.info("Adding game: {} to appUser: {}", game, appUser.getEmail());
+        appUser.getGames().add(game);
+    }
+
+    public List<Game> getAppUserGames(String email) {
         log.info("Getting appUser: {} games", email);
         AppUser appUser = appUserRepository.findByEmail(email);
-        return appUser.getGames();
+        return new ArrayList<>(appUser.getGames());
     }
 
     @Override
@@ -111,4 +141,44 @@ public class AppUserService implements UserDetailsService {
         log.error("User not found {}", email);
         throw new UsernameNotFoundException(email);
     }
+
+    public AppUser addSteamIdFromUsername(String steamUsername, String email) {
+        Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
+        if (!optionalAppUser.isPresent()) {
+            log.error("User not found {}", email);
+            throw new UsernameNotFoundException(email);
+        }
+        AppUser appUser = optionalAppUser.get();
+        HttpRequest request = HttpRequest.newBuilder()
+                .GET()
+                .uri(URI.create("http://api.steampowered.com/ISteamUser/ResolveVanityURL/v0001/?key="+steamKey+"&vanityurl="+steamUsername))
+                .setHeader("User-Agent", "Java 11 HttpClient Bot")
+                .build();
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            JSONObject responseObject = new JSONObject(response.body());
+            if (responseObject.getJSONObject("response").getInt("success") == 1) {
+                appUser.setSteamId(responseObject.getJSONObject("response").getString("steamid"));
+                appUser.setSteamUsername(steamUsername);
+                return appUser;
+            }
+            throw new RuntimeException("Steam username not found");
+        } catch (Exception e) {
+            return null;
+        }
+
+    }
+
+    public AppUser deleteGameFromAppUser(String email, Long gameId) {
+        Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
+        if (!optionalAppUser.isPresent()) {
+            log.error("User not found {}", email);
+            throw new UsernameNotFoundException(email);
+        }
+        AppUser appUser = optionalAppUser.get();
+        appUser.getGames().remove(gameRepository.findById(gameId).get());
+        return appUserRepository.save(appUser);
+    }
+
+
 }

@@ -1,8 +1,8 @@
 package com.gamemanager.backend.appUser;
 
+import com.gamemanager.backend.appUserGame.AppUserGame;
 import com.gamemanager.backend.game.Game;
 import com.gamemanager.backend.game.GameRepository;
-import com.gamemanager.backend.game.GameService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.json.JSONObject;
@@ -75,7 +75,7 @@ public class AppUserService implements UserDetailsService {
         return appUserRepository.findAll();
     }
 
-    public AppUser addGameToAppUser(String email, Game game) {
+    public AppUser addGameToAppUser(String email, AppUserGame game) {
         log.info("Adding game: {} to appUser: {}", game, email);
 
         Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
@@ -83,23 +83,23 @@ public class AppUserService implements UserDetailsService {
             log.error("AppUser not found");
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "AppUser not found");
         }
-        Optional<Game> optionalGame = gameRepository.findGameByName(game.getName());
+        Optional<Game> optionalGame = gameRepository.findGameByName(game.getGame().getName());
         if (!optionalGame.isPresent()) {
-            gameRepository.save(game);
+            gameRepository.save(game.getGame());
         }
         optionalAppUser.get().getGames().add(game);
         return optionalAppUser.get();
     }
 
-    public void addGameToAppUser(AppUser appUser, Game game) {
+    public void addGameToAppUser(AppUser appUser, AppUserGame game) {
         log.info("Adding game: {} to appUser: {}", game, appUser.getEmail());
         appUser.getGames().add(game);
     }
 
-    public List<Game> getAppUserGames(String email) {
+    public ArrayList<AppUserGame> getAppUserGames(String email) {
         log.info("Getting appUser: {} games", email);
         AppUser appUser = appUserRepository.findByEmail(email);
-        return new ArrayList<>(appUser.getGames());
+        return new ArrayList<AppUserGame>(appUser.getGames());
     }
 
     @Override
@@ -179,6 +179,5 @@ public class AppUserService implements UserDetailsService {
         appUser.getGames().remove(gameRepository.findById(gameId).get());
         return appUserRepository.save(appUser);
     }
-
 
 }

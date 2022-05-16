@@ -64,7 +64,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         http.csrf().disable();
         http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
         //TODO: Set these up properly, below for example
-        http.authorizeRequests().antMatchers("/api/v1/login/**", "/api/v1/appUser/refreshToken/**", "/api/v1/game/**", "/api/v1/appUser/create/**", "/api/v1/appUser/addSteamIdFromUsername/**").permitAll();
+        http.authorizeRequests().antMatchers("/api/v1/login/**", "/api/v1/appUser/refreshToken/**", "/api/v1/game/**", "/api/v1/appUser/create/**", "/api/v1/appUser/addSteamIdFromUsername/**", "/api/v1/appUserGame/**").permitAll();
         http.authorizeRequests().antMatchers(GET, "/api/v1/secrets/**").hasAnyAuthority("ROLE_ADMIN");
         http.authorizeRequests().anyRequest().authenticated();
         http.addFilter(authenticationFilter);

@@ -2,6 +2,8 @@ package com.gamemanager.backend.game;
 
 import com.gamemanager.backend.appUser.AppUser;
 import com.gamemanager.backend.appUser.AppUserService;
+import com.gamemanager.backend.appUserGame.AppUserGame;
+import com.gamemanager.backend.appUserGame.AppUserGameRepository;
 import com.google.common.util.concurrent.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,11 +40,11 @@ public class GameService {
 
     private final GameRepository gameRepository;
     private final AppUserService appUserService;
+    private final AppUserGameRepository appUserGameRepository;
     private final String clientId = System.getenv("CLIENT_ID");
     private final String clientSecret = System.getenv("CLIENT_SECRET");
     private final String steamKey = System.getenv("STEAM_KEY");
     private final RateLimiter rateLimiter = RateLimiter.create(4.0);
-    private static final int MAX_RESULTS = 4;
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
@@ -54,13 +56,16 @@ public class GameService {
     }
 
     public void addSteamGamesToLibrary(String steamId, String userEmail) {
+        // Check if user exists
         Optional<AppUser> appUser = Optional.ofNullable(appUserService.findAppUserByEmail(userEmail));
         if (!appUser.isPresent()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User not found");
         }
         final String urlStr = "http://api.steampowered.com/IPlayerService/GetOwnedGames/v0001/?key="+ steamKey+ "&steamid="+ steamId +"&include_appinfo=1&format=json";
+        // Get JSON from Steam API
         JSONObject root = getJSONRoot(urlStr);
         JSONArray games = root.getJSONObject("response").getJSONArray("games");
+
         //for (int i = 0; i < games.length(); i++) {
         for (int i = 0; i < 10; i++) {
             // This will always be a JSONObject so casting is safe
@@ -69,7 +74,46 @@ public class GameService {
             String gameName = currentGame.getString("name");
             int playTime = currentGame.getInt("playtime_forever");
             int steamAppId = currentGame.getInt("appid");
+            // Proceed to add game to library
             storeGame(gameName, playTime, steamAppId, appUser.get());
+        }
+    }
+
+    private void storeGame(String gameName, int playTime, int steamAppId, AppUser appUser) {
+        // Check if the game already exists, if so add it to the user's library if not already there
+        Optional<Game> optionalGame = gameRepository.findGameBySteamAppId(steamAppId);
+        if (optionalGame.isPresent()) {
+            Collection<AppUserGame> games = appUser.getGames();
+            for (AppUserGame game : games) {
+                if (game.getGame().getSteamAppId() == steamAppId) {
+                    log.info("Game already exists in user's list");
+                    return;
+                }
+            }
+            AppUserGame appUserGame = new AppUserGame(appUser, optionalGame.get(), playTime);
+            appUserGameRepository.save(appUserGame);
+            appUser.getGames().add(appUserGame);
+            return;
+        }
+
+        // Get the game's information from the IGDB
+        JSONArray jsonArr = getIGDBJsonArray(gameName);
+
+        // If the game doesn't exist in IGDB, add it to the database
+        if (jsonArr == null || jsonArr.length() <= 0) {
+            Game game = new Game(gameName, "", -1, -1, null, "", steamAppId);
+            gameRepository.save(game);
+            AppUserGame appUserGame = new AppUserGame(appUser, game, playTime);
+            appUserGameRepository.save(appUserGame);
+            appUserService.addGameToAppUser(appUser, appUserGame);
+        }
+        // If the game was found in IGDB, add it to the database and add it to the user's library
+        else {
+            Game game = convertToGameObject(jsonArr.getJSONObject(0), playTime, steamAppId);
+            gameRepository.save(game);
+            AppUserGame appUserGame = new AppUserGame(appUser, game, playTime);
+            appUserGameRepository.save(appUserGame);
+            appUserService.addGameToAppUser(appUser, appUserGame);
         }
     }
 
@@ -92,10 +136,12 @@ public class GameService {
         }
     }
 
+    // Helper method that runs if the game doesn't exist in IGDB
     private Game convertToGameObject(JSONObject jsonGame) {
         return convertToGameObject(jsonGame, -1, -1);
     }
 
+    // Check the fields of the game and convert them to a Game object
     private Game convertToGameObject(JSONObject jsonGame, int playTime, int steamAppId) {
         System.out.println(jsonGame.toString());
         String name = "Unknown";
@@ -123,36 +169,10 @@ public class GameService {
             JSONArray genreArr = jsonGame.getJSONArray("genres");
             genre = genreArr.getJSONObject(0).getString("name");
         }
-        return new Game(name, summary, cover, rating, releaseDate, genre, playTime, steamAppId);
+        return new Game(name, summary, cover, rating, releaseDate, genre, steamAppId);
     }
 
-    private void storeGame(String gameName, AppUser appUser) {
-        storeGame(gameName, -1, -1, appUser);
-    }
-
-    private void storeGame(String gameName, int playTime, int steamAppId, AppUser appUser) {
-        Optional<Game> optionalGame = gameRepository.findGameBySteamAppId(steamAppId);
-        if (optionalGame.isPresent()) {
-            if (appUser.getGames().contains(optionalGame.get())) {
-                log.info("Game already exists in user's list");
-                return;
-            }
-        }
-
-        JSONArray jsonArr = getIGDBJsonArray(gameName);
-
-        if (jsonArr == null || jsonArr.length() <= 0) {
-            Game game = new Game(gameName, "", -1, -1, null, "", playTime, steamAppId);
-            gameRepository.save(game);
-            appUserService.addGameToAppUser(appUser, game);
-        }
-        else {
-            Game game = convertToGameObject(jsonArr.getJSONObject(0), playTime, steamAppId);
-            gameRepository.save(game);
-            appUserService.addGameToAppUser(appUser, game);
-        }
-    }
-
+    // Tokens expire regularly, so need to get a new one on every request
     private String getIgdbAccessToken() {
         HttpRequest request = HttpRequest.newBuilder()
                 .POST(HttpRequest.BodyPublishers.ofString(""))
@@ -171,6 +191,7 @@ public class GameService {
         return "error";
     }
 
+    // Helper method to get the root of the JSON from the URL
     private JSONObject getJSONRoot(String urlStr) {
         try {
             URL url = new URL(urlStr);
@@ -205,33 +226,6 @@ public class GameService {
             throw new IllegalStateException(("Game with id " + gameId + " does not exist"));
         }
         gameRepository.deleteById(gameId);
-    }
-
-    @Transactional
-    public void updateGame(Game updatedGame) {
-        Game game = gameRepository.findById(updatedGame.getId()).orElseThrow(() ->
-                new IllegalStateException(
-                        "Game with id " + updatedGame.getId() + " does not exist"
-                ));
-
-        if (updatedGame != null && updatedGame.getName() != null && !Objects.equals(game.getName(), updatedGame.getName())) {
-            if (updatedGame.getName().length() > 0) {
-                game.setName(updatedGame.getName());
-            }
-        }
-
-        if (updatedGame != null && updatedGame.getDescription() != null && !Objects.equals(game.getDescription(), updatedGame.getDescription())) {
-            if (updatedGame.getDescription().length() > 0) {
-                game.setDescription(updatedGame.getDescription());
-            }
-        }
-
-        if (updatedGame != null && updatedGame.getGameStatus() != null && !Objects.equals(game.getGameStatus(), updatedGame.getGameStatus())) {
-            if (updatedGame.getGameStatus().length() > 0) {
-                game.setGameStatus(updatedGame.getGameStatus());
-            }
-        }
-
     }
 
     public List<Game> searchIGDBByGameName(String searchTerm) {

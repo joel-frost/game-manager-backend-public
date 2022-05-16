@@ -1,6 +1,7 @@
 package com.gamemanager.backend.appUser;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.gamemanager.backend.appUserGame.AppUserGame;
 import com.gamemanager.backend.game.Game;
 import lombok.*;
 import org.hibernate.Hibernate;
@@ -31,12 +32,12 @@ public class AppUser {
     private String steamUsername;
     @ManyToMany(fetch = FetchType.EAGER)
     private Collection<Role> roles = new ArrayList<>();
-    @ManyToMany(fetch = FetchType.LAZY)
     @ToString.Exclude
     @JsonIgnore
-    private Collection<Game> games = new ArrayList<>();
+    @OneToMany(fetch = FetchType.LAZY)
+    private Collection<AppUserGame> games = new ArrayList<>();
 
-    public AppUser(Long id, String firstName, String lastName, String email, String password, Collection<Role> roles, Collection<Game> games) {
+    public AppUser(Long id, String firstName, String lastName, String email, String password, Collection<Role> roles, Collection<AppUserGame> games) {
         this.id = id;
         this.firstName = firstName;
         this.lastName = lastName;

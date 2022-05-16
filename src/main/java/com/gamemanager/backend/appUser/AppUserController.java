@@ -3,6 +3,7 @@ package com.gamemanager.backend.appUser;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.gamemanager.backend.appUserGame.AppUserGame;
 import com.gamemanager.backend.game.Game;
 import com.gamemanager.backend.security.config.SecurityUtilities;
 import lombok.Data;
@@ -43,7 +44,7 @@ public class AppUserController {
     }
 
     @GetMapping("/games/{email}")
-    public ResponseEntity<Collection<Game>> getGames(@PathVariable String email) {
+    public ResponseEntity<Collection<AppUserGame>> getGames(@PathVariable String email) {
         return ResponseEntity.ok().body(appUserService.getAppUserGames(email));
     }
 
@@ -53,7 +54,7 @@ public class AppUserController {
     }
 
     @PostMapping("/addGame/{email}")
-    public ResponseEntity<AppUser> addGameToAppUser(@PathVariable String email, @RequestBody Game game) {
+    public ResponseEntity<AppUser> addGameToAppUser(@PathVariable String email, @RequestBody AppUserGame game) {
         URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/appUser/addGame/{email}").buildAndExpand(email).toUriString());
         return ResponseEntity.created(uri).body(appUserService.addGameToAppUser(email, game));
     }
@@ -81,7 +82,6 @@ public class AppUserController {
         appUserService.addRoleToAppUser(roleToUser.getUsername(), roleToUser.getRoleName());
         return ResponseEntity.created(uri).build();
     }
-
     @GetMapping("/refreshToken")
     public void refreshToken(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String authHeader = request.getHeader("Authorization");

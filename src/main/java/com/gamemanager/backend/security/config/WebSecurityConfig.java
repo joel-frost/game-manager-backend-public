@@ -1,13 +1,11 @@
 package com.gamemanager.backend.security.config;
+
 import lombok.RequiredArgsConstructor;
-import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.Ordered;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.builders.WebSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -17,33 +15,18 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.web.filter.CorsFilter;
 
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.springframework.http.HttpMethod.GET;
 
-
+@SuppressWarnings("EmptyMethod")
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor
 public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
     private final UserDetailsService userDetailsService;
     private final BCryptPasswordEncoder bCryptPasswordEncoder;
-
-//    @Override
-//    protected void configure(HttpSecurity http) throws Exception {
-//        //Enable again later
-//        http
-//                .csrf().disable()
-//                .authorizeRequests()
-//                .antMatchers("/api/v*/**")
-//                .permitAll()
-//                .anyRequest()
-//                .authenticated().and()
-//                .formLogin();
-//    }
 
     @Bean
     @Override
@@ -53,6 +36,7 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
 
     @Override
     protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        // Sets the password encoder
         auth.userDetailsService(userDetailsService).passwordEncoder(bCryptPasswordEncoder);
     }
 
@@ -63,16 +47,26 @@ public class WebSecurityConfig extends WebSecurityConfigurerAdapter {
         authenticationFilter.setFilterProcessesUrl("/api/v1/login/**");
         http.csrf().disable();
         http.sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
-        //TODO: Set these up properly, below for example
-        http.authorizeRequests().antMatchers("/api/v1/login/**", "/api/v1/appUser/refreshToken/**", "/api/v1/game/**", "/api/v1/appUser/create/**", "/api/v1/appUser/addSteamIdFromUsername/**", "/api/v1/appUserGame/**").permitAll();
-        http.authorizeRequests().antMatchers(GET, "/api/v1/secrets/**").hasAnyAuthority("ROLE_ADMIN");
+        // Sets allowed API requests, although still requires authentication
+        http.authorizeRequests().antMatchers(
+                "/api-docs/**",
+                "/api/v1/login/**",
+                "/api/v1/appUser/refreshToken/**",
+                "/api/v1/game/**",
+                "/api/v1/appUser/create/**",
+                "/api/v1/appUser/addSteamIdFromUsername/**",
+                "/api/v1/appUserGame/**",
+                "/swagger-ui.html/**"
+        ).permitAll();
         http.authorizeRequests().anyRequest().authenticated();
+        // Add the filters to Spring Security
         http.addFilter(authenticationFilter);
         http.addFilterBefore(new AuthorisationFilter(), UsernamePasswordAuthenticationFilter.class);
     }
 
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
+        // Allows all headers and methods from the frontend url, blocks other origins
         CorsConfiguration configuration = new CorsConfiguration();
         configuration.setAllowCredentials(true);
         configuration.setAllowedOrigins(Arrays.asList(SecurityUtilities.FRONTEND_URL));

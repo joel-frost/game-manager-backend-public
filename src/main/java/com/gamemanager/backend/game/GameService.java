@@ -7,22 +7,18 @@ import com.gamemanager.backend.appUserGame.AppUserGameRepository;
 import com.google.common.util.concurrent.RateLimiter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.json.JSONObject;
-import org.json.JSONException;
 import org.json.JSONArray;
+import org.json.JSONObject;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
+import javax.transaction.Transactional;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URI;
 import java.net.URL;
-
-import org.springframework.http.HttpStatus;
-import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
-
-
-import javax.transaction.Transactional;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -30,8 +26,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
+@SuppressWarnings("UnstableApiUsage")
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -45,6 +45,7 @@ public class GameService {
     private final String clientSecret = System.getenv("CLIENT_SECRET");
     private final String steamKey = System.getenv("STEAM_KEY");
     private final RateLimiter rateLimiter = RateLimiter.create(4.0);
+    private static final Integer MAX_RESULTS = 10;
 
     private static final HttpClient httpClient = HttpClient.newBuilder()
             .version(HttpClient.Version.HTTP_1_1)
@@ -53,6 +54,10 @@ public class GameService {
 
     public List<Game> getAllGames() {
         return gameRepository.findAll();
+    }
+
+    public Optional<Game> findGameByName(String name) {
+        return gameRepository.findByName(name);
     }
 
     public void addSteamGamesToLibrary(String steamId, String userEmail) {
@@ -75,6 +80,7 @@ public class GameService {
             int playTime = currentGame.getInt("playtime_forever");
             int steamAppId = currentGame.getInt("appid");
             // Proceed to add game to library
+            log.info("Adding game: " + gameName + " to library");
             storeGame(gameName, playTime, steamAppId, appUser.get());
         }
     }
@@ -93,6 +99,7 @@ public class GameService {
             AppUserGame appUserGame = new AppUserGame(appUser, optionalGame.get(), playTime);
             appUserGameRepository.save(appUserGame);
             appUser.getGames().add(appUserGame);
+            log.info("Game added to user's list");
             return;
         }
 
@@ -106,6 +113,7 @@ public class GameService {
             AppUserGame appUserGame = new AppUserGame(appUser, game, playTime);
             appUserGameRepository.save(appUserGame);
             appUserService.addGameToAppUser(appUser, appUserGame);
+            log.info("Game added to user's list");
         }
         // If the game was found in IGDB, add it to the database and add it to the user's library
         else {
@@ -114,6 +122,7 @@ public class GameService {
             AppUserGame appUserGame = new AppUserGame(appUser, game, playTime);
             appUserGameRepository.save(appUserGame);
             appUserService.addGameToAppUser(appUser, appUserGame);
+            log.info("Game added to user's list");
         }
     }
 
@@ -132,6 +141,7 @@ public class GameService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             return new JSONArray(response.body());
         } catch (Exception e) {
+            log.error("Error getting game from IGDB", e);
             return null;
         }
     }
@@ -183,12 +193,12 @@ public class GameService {
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             JSONObject jsonRes = new JSONObject(response.body());
             String token = jsonRes.getString("access_token");
+            log.info("Got new IGDB token");
             return token;
         } catch (Exception e) {
-            System.out.println(e);
+            log.error("Error getting IGDB access token");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error getting IGDB token");
         }
-
-        return "error";
     }
 
     // Helper method to get the root of the JSON from the URL
@@ -206,38 +216,54 @@ public class GameService {
             br.close();
             return new JSONObject(json);
         } catch (IOException e) {
-            // TODO Handle exception
-            e.printStackTrace();
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Error getting JSON from IGDB");
         }
-        throw new JSONException("Data loading error");
     }
 
     public void addNewGame(Game game) {
         Optional<Game> gameOptional = gameRepository.findById(game.getId());
         if (gameOptional.isPresent()) {
-            throw new IllegalStateException("Game already exists");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Game already exists");
         }
+        log.info("Adding new game to database");
         gameRepository.save(game);
     }
 
     public void deleteGame(Long gameId) {
         boolean exists = gameRepository.existsById(gameId);
         if (!exists) {
-            throw new IllegalStateException(("Game with id " + gameId + " does not exist"));
+            log.error("Game with id " + gameId + " does not exist");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Game does not exist");
         }
+        log.info("Deleting game with id " + gameId);
         gameRepository.deleteById(gameId);
     }
 
     public List<Game> searchIGDBByGameName(String searchTerm) {
-        //TODO: Check if exists first
+
         JSONArray results = getIGDBJsonArray(searchTerm);
-        List<Game> resultGames = new ArrayList<>();
-        for (int i = 0; i < results.length(); i++) {
+        List<Game> igdbGames = new ArrayList<>();
+        // Set the number of games to return
+        Integer gameCount = results.length();
+        if (gameCount > MAX_RESULTS) {
+            gameCount = MAX_RESULTS;
+        }
+        for (int i = 0; i < gameCount; i++) {
             Game game = convertToGameObject(results.getJSONObject(i));
-            resultGames.add(game);
+            igdbGames.add(game);
         }
         //Sort the results by aggregated rating
-        resultGames.sort((Game g1, Game g2) -> (int) Math.signum(g2.getAggregatedRating()-g1.getAggregatedRating()));
-        return resultGames;
+        igdbGames.sort((Game g1, Game g2) -> (int) Math.signum(g2.getAggregatedRating()-g1.getAggregatedRating()));
+
+        // If there were any local games add them to the top of the list
+        List<Game> localGames = gameRepository.findByNameContainingIgnoreCase(searchTerm);
+        System.out.println(localGames);
+        if (localGames.size() > 0) {
+            log.info("Found " + localGames.size() + " local games");
+            localGames.addAll(igdbGames);
+           return localGames;
+        }
+        log.info("Found " + igdbGames.size() + " total games");
+        return igdbGames;
     }
 }

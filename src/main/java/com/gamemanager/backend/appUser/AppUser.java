@@ -2,7 +2,6 @@ package com.gamemanager.backend.appUser;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.gamemanager.backend.appUserGame.AppUserGame;
-import com.gamemanager.backend.game.Game;
 import lombok.*;
 import org.hibernate.Hibernate;
 

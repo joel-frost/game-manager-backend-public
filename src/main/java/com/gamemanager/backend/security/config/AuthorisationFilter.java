@@ -29,9 +29,10 @@ public class AuthorisationFilter extends OncePerRequestFilter {
        || request.getServletPath().equals("/api/v1/appUser/create/user/")){
            // Pass to next filter in chain
            filterChain.doFilter(request, response);
-       } else {;
+       } else {
            String authHeader = request.getHeader("Authorization");
            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+               //noinspection DuplicatedCode
                try {
                    // Remove 'bearer' from header
                    String token = authHeader.substring(7);
@@ -54,7 +55,6 @@ public class AuthorisationFilter extends OncePerRequestFilter {
                    // Continue to next filter in chain
                    filterChain.doFilter(request, response);
                } catch (Exception e) {
-                   //TODO: extract this to a util class
                    log.error("Error verifying token: {}", e.getMessage());
                    Map<String, String> errorResponse = new HashMap<>();
                    errorResponse.put("message", e.getMessage());

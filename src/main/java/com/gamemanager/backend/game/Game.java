@@ -18,11 +18,11 @@ public class Game {
     private Long id;
     private String name;
     @Lob
-    private String description;
-    private Integer coverCode;
-    private Float aggregatedRating;
+    private String description = "";
+    private Integer coverCode = -1;
+    private Float aggregatedRating = -1f;
     private LocalDate releaseDate;
-    private String genre;
+    private String genre = "";
     private Integer steamAppId;
 
     public Game(String name) {

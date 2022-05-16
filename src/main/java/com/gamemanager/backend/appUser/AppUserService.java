@@ -56,20 +56,29 @@ public class AppUserService implements UserDetailsService {
         appUser.setPassword(passwordEncoder.encode(appUser.getPassword()));
         return appUserRepository.save(appUser);
     }
+
     public Role saveRole(Role role) {
         log.info("Saving role: {}", role);
         return roleRepository.save(role);
     }
+
     public void addRoleToAppUser(String email, String roleName) {
         log.info("Adding role: {} to appUser: {}", roleName, email);
         AppUser appUser = appUserRepository.findByEmail(email);
         Role role = roleRepository.findByName(roleName);
         appUser.getRoles().add(role);
     }
+
     public AppUser findAppUserByEmail(String email) {
         log.info("Finding appUser by email: {}", email);
         return appUserRepository.findByEmail(email);
     }
+
+    public AppUser findAppUserById(Long id) {
+        log.info("Finding appUser by id: {}", id);
+        return appUserRepository.findById(id).orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "AppUser not found"));
+    }
+
     public List<AppUser> getUsers() {
         log.info("Getting all users");
         return appUserRepository.findAll();
@@ -77,12 +86,13 @@ public class AppUserService implements UserDetailsService {
 
     public AppUser addGameToAppUser(String email, AppUserGame game) {
         log.info("Adding game: {} to appUser: {}", game, email);
-
+        // Check that app user exists
         Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
         if (!optionalAppUser.isPresent()) {
             log.error("AppUser not found");
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "AppUser not found");
         }
+        // Check if game exists, if not save to database
         Optional<Game> optionalGame = gameRepository.findGameByName(game.getGame().getName());
         if (!optionalGame.isPresent()) {
             gameRepository.save(game.getGame());
@@ -91,6 +101,7 @@ public class AppUserService implements UserDetailsService {
         return optionalAppUser.get();
     }
 
+    // Overload method if the app user object is already known
     public void addGameToAppUser(AppUser appUser, AppUserGame game) {
         log.info("Adding game: {} to appUser: {}", game, appUser.getEmail());
         appUser.getGames().add(game);
@@ -99,15 +110,16 @@ public class AppUserService implements UserDetailsService {
     public ArrayList<AppUserGame> getAppUserGames(String email) {
         log.info("Getting appUser: {} games", email);
         AppUser appUser = appUserRepository.findByEmail(email);
-        return new ArrayList<AppUserGame>(appUser.getGames());
+        return new ArrayList<>(appUser.getGames());
     }
 
     @Override
+    // Override to allow email to be used as the username
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         AppUser user = appUserRepository.findByEmail(email);
         if (user == null) {
             log.error("User not found {}", email);
-            throw new UsernameNotFoundException(email);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         } else {
             log.info("User found {}", email);
         }
@@ -116,10 +128,13 @@ public class AppUserService implements UserDetailsService {
         return new User(user.getEmail(), user.getPassword(), authorities);
     }
 
+
     public AppUser updateAppUser(String email, AppUser appUser) {
         log.info("Updating appUser: {}", email);
+        // Check if the user exists
         Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
         if (optionalAppUser.isPresent()) {
+            // Validate input and update user
             AppUser user = optionalAppUser.get();
             if (appUser.getFirstName() != null && !appUser.getFirstName().isEmpty()) {
                 user.setFirstName(appUser.getFirstName());
@@ -139,14 +154,15 @@ public class AppUserService implements UserDetailsService {
             return appUserRepository.save(user);
         }
         log.error("User not found {}", email);
-        throw new UsernameNotFoundException(email);
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
     }
 
     public AppUser addSteamIdFromUsername(String steamUsername, String email) {
+        // Get the user's steam id from their steam username and store it in the database
         Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
         if (!optionalAppUser.isPresent()) {
             log.error("User not found {}", email);
-            throw new UsernameNotFoundException(email);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
         AppUser appUser = optionalAppUser.get();
         HttpRequest request = HttpRequest.newBuilder()
@@ -162,7 +178,7 @@ public class AppUserService implements UserDetailsService {
                 appUser.setSteamUsername(steamUsername);
                 return appUser;
             }
-            throw new RuntimeException("Steam username not found");
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Steam username not found");
         } catch (Exception e) {
             return null;
         }
@@ -173,7 +189,7 @@ public class AppUserService implements UserDetailsService {
         Optional<AppUser> optionalAppUser = Optional.ofNullable(appUserRepository.findByEmail(email));
         if (!optionalAppUser.isPresent()) {
             log.error("User not found {}", email);
-            throw new UsernameNotFoundException(email);
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User not found");
         }
         AppUser appUser = optionalAppUser.get();
         appUser.getGames().remove(gameRepository.findById(gameId).get());

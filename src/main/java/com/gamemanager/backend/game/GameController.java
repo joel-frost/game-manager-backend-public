@@ -29,14 +29,4 @@ public class GameController {
         gameService.addNewGame(game);
     }
 
-    @DeleteMapping(path = "{gameId}")
-    public void deleteGame(@PathVariable("gameId") Long gameId) {
-        gameService.deleteGame(gameId);
-    }
-
-    @PutMapping
-    public void updateGame(@RequestBody Game updatedGame) {
-        gameService.updateGame(updatedGame);
-    }
-    
 }

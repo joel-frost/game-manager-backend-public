@@ -4,22 +4,25 @@ import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.gamemanager.backend.appUserGame.AppUserGame;
-import com.gamemanager.backend.game.Game;
 import com.gamemanager.backend.security.config.SecurityUtilities;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URI;
+import java.security.Principal;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@SuppressWarnings("DuplicatedCode")
 @Slf4j
 @RestController
 @RequiredArgsConstructor
@@ -33,7 +36,10 @@ public class AppUserController {
     }
 
     @GetMapping("/findByEmail/{email}")
-    public ResponseEntity<AppUser> findByEmail(@PathVariable String email) {
+    public ResponseEntity<AppUser> findByEmail(@PathVariable String email, Principal principal) {
+        if (principal == null || !principal.getName().equals(email)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You are not authorized to view this page");
+        }
         return ResponseEntity.ok().body(appUserService.findAppUserByEmail(email));
     }
 
@@ -43,25 +49,21 @@ public class AppUserController {
         return ResponseEntity.created(uri).body(appUserService.addSteamIdFromUsername(steamUsername, email));
     }
 
+
     @GetMapping("/games/{email}")
-    public ResponseEntity<Collection<AppUserGame>> getGames(@PathVariable String email) {
+    public ResponseEntity<Collection<AppUserGame>> getGames(@PathVariable String email, Principal principal) {
+        if (principal == null || !principal.getName().equals(email)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You are not authorized to view this page");
+        }
         return ResponseEntity.ok().body(appUserService.getAppUserGames(email));
     }
 
     @PutMapping("/update/{email}")
-    public ResponseEntity<AppUser> updateAppUser(@PathVariable String email, @RequestBody AppUser appUser) {
+    public ResponseEntity<AppUser> updateAppUser(@PathVariable String email, @RequestBody AppUser appUser, Principal principal) {
+        if (principal == null || !principal.getName().equals(email)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "You are not authorized to view this page");
+        }
         return ResponseEntity.ok().body(appUserService.updateAppUser(email, appUser));
-    }
-
-    @PostMapping("/addGame/{email}")
-    public ResponseEntity<AppUser> addGameToAppUser(@PathVariable String email, @RequestBody AppUserGame game) {
-        URI uri = URI.create(ServletUriComponentsBuilder.fromCurrentContextPath().path("/api/v1/appUser/addGame/{email}").buildAndExpand(email).toUriString());
-        return ResponseEntity.created(uri).body(appUserService.addGameToAppUser(email, game));
-    }
-
-    @DeleteMapping("/deleteGame/{email}/{gameId}")
-    public ResponseEntity<AppUser> deleteGameFromAppUser(@PathVariable String email, @PathVariable Long gameId) {
-        return ResponseEntity.ok().body(appUserService.deleteGameFromAppUser(email, gameId));
     }
 
     @PostMapping("/create/user")
@@ -113,7 +115,7 @@ public class AppUserController {
                 new ObjectMapper().writeValue(response.getOutputStream(), errorResponse);
             }
         } else {
-            throw new RuntimeException("Token not present");
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "No token provided");
         }
     }
 }

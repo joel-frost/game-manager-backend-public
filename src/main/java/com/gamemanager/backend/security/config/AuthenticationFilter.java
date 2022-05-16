@@ -30,7 +30,7 @@ public class AuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
     @Override
     public Authentication attemptAuthentication(HttpServletRequest request, HttpServletResponse response) throws AuthenticationException {
-        //TODO if want to get details from object, change to object mapper
+        // Get credentials from request and create authentication object
         String email = request.getParameter("email");
         String password = request.getParameter("password");
         log.info("Attempting authentication with email: {}", email);
@@ -41,24 +41,27 @@ public class AuthenticationFilter extends UsernamePasswordAuthenticationFilter {
 
     @Override
     protected void successfulAuthentication(HttpServletRequest request, HttpServletResponse response, FilterChain chain, Authentication authResult) throws IOException {
+        // Get user details from authentication object
         User user = (User) authResult.getPrincipal();
         Algorithm algorithm = SecurityUtilities.getAlgorithm();
+        // Create access token
         String accessToken = JWT.create().withSubject(user.getUsername())
                 .withExpiresAt(new Date(System.currentTimeMillis() + SecurityUtilities.ACCESS_TOKEN_EXPIRATION_TIME))
                 .withIssuer(request.getRequestURL().toString())
-                //TODO make this easier to read
                 .withClaim("roles", user.getAuthorities().stream().map(GrantedAuthority::getAuthority).collect(Collectors.toList()))
                 .sign(algorithm);
-
+        // Create refresh token
         String refreshToken = JWT.create().withSubject(user.getUsername())
                 .withExpiresAt(new Date(System.currentTimeMillis() + SecurityUtilities.REFRESH_TOKEN_EXPIRATION_TIME))
                 .withIssuer(request.getRequestURL().toString())
                 .sign(algorithm);
 
+        // Create response body
         Map<String, String> tokens = new HashMap<>();
         tokens.put("access_token", accessToken);
         tokens.put("refresh_token", refreshToken);
         response.setContentType("application/json");
+        // Write response body
         new ObjectMapper().writeValue(response.getOutputStream(), tokens);
     }
 }
